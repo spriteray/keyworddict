@@ -17,28 +17,24 @@ int main()
 
 	KeywordDict * dict = new KeywordDict;
 
-	dict->init();
-
 	for (int32_t i = 0; i < 3; ++i)
 	{
 		dict->add( (char *)keywords[i] );
 	}
 
 	printf("Content: %s\n", input );
-	
+
 	int32_t rc = dict->filter( input, strlen(input) );
 	printf("rc:%d\nContent: %s\n", rc, input );
-	
+
 	strcpy( input, "Hello DA World DFA, HaHa! ¶ñÐÄzzz" );
 	rc = dict->filter( input, strlen(input), output, 199, "judy", 4 );
 	printf("rc:%d\nContent: %s\n", rc, output );
-	
+
 	free(input);
 	free(output);
-	
-	dict->final();
+
 	delete dict;
 
 	return 0;
 }
-

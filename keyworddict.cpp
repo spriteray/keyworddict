@@ -1,73 +1,65 @@
 
 #include <map>
-
-#include <string.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cassert>
+#include <cstring>
+#include <cstdlib>
 
 #include "keyworddict.h"
 
 class KeywordNode
 {
 public :
+    KeywordNode( uint8_t c )
+        : m_Char( c ),
+          m_IsEnding( false )
+    {}
 
-	KeywordNode()
-	{
-		m_IsEnding = false;
-		m_KeywordNodes.clear();
-	}
-
-	~KeywordNode()
-	{
-		m_IsEnding = false;
-
-		std::map<char, KeywordNode*>::iterator it;
-		for ( it = m_KeywordNodes.begin(); it != m_KeywordNodes.end(); ++it )
-		{
-			KeywordNode * node = it->second;
-			if ( node )
-			{
-				delete node;
-			}
-		}
-
-		m_KeywordNodes.clear();
-	}
+    ~KeywordNode()
+    {
+        KeywordNodes::iterator it = m_NextNodes.begin();
+        for ( ; it != m_NextNodes.end(); ++it )
+        {
+            KeywordNode * node = it->second;
+            if ( node )
+            {
+                delete node;
+            }
+        }
+        m_NextNodes.clear();
+    }
 
 public :
+    KeywordNode * find( uint8_t c ) const
+    {
+        KeywordNode * node = NULL;
+        KeywordNodes::const_iterator pos;
 
-	KeywordNode * find( char c )
-	{
-		KeywordNode * rc = NULL;
-		std::map<char, KeywordNode*>::iterator pos;
+        pos =  m_NextNodes.find( c );
+        if ( pos != m_NextNodes.end() )
+        {
+            node = pos->second;
+        }
 
-		pos =  m_KeywordNodes.find( c );
-		if ( pos != m_KeywordNodes.end() )
-		{
-			rc = pos->second;
-		}
+        return node;
+    }
 
-		return rc;
-	}
+    void add( uint8_t c, KeywordNode * node )
+    {
+        m_NextNodes.insert( std::make_pair( c, node ) );
+    }
 
-	void add( char c, KeywordNode * node )
-	{
-		m_KeywordNodes.insert( std::make_pair(c, node) );
-	}
+    uint8_t getChar() const { return m_Char; }
 
-	bool isEnding() const
-	{
-		return m_IsEnding;
-	}
-
-	void setEnding()
-	{
-		m_IsEnding = true;
-	}
+    void setEnding() { m_IsEnding = true; }
+    bool isEnding() const { return m_IsEnding; }
 
 private :
+    typedef std::map<uint8_t, KeywordNode *> KeywordNodes;
 
-	bool							m_IsEnding;
-	std::map<char, KeywordNode *>	m_KeywordNodes;
+    uint8_t             m_Char;
+    bool                m_IsEnding;
+    KeywordNodes        m_NextNodes;
 };
 
 // ---------------------------------------------------------------------
@@ -75,199 +67,202 @@ private :
 // ---------------------------------------------------------------------
 
 KeywordDict::KeywordDict()
+    : m_Count( 0 )
 {
-	m_RootNode = NULL;
+    m_RootNode = new KeywordNode( 0 );
+    assert( m_RootNode != NULL );
 }
 
 KeywordDict::~KeywordDict()
 {
-	m_RootNode = NULL;
+    delete m_RootNode;
+
+    m_Count = 0;
+    m_RootNode = NULL;
 }
 
-bool KeywordDict::init()
+// TODO: DFA Minimization
+int32_t KeywordDict::add( const char * words, int32_t len )
 {
-	m_RootNode = new KeywordNode;
-	if ( m_RootNode )
-	{
-		return true;
-	}
+    len = ( len == 0 ? (int32_t)std::strlen(words) : len );
+    if ( len <= 0 )
+    {
+        return -1;
+    }
 
-	return false;
+    this->insert( m_RootNode, words, len, 0 );
+    return 0;
 }
 
-void KeywordDict::final()
+bool KeywordDict::check( const char * words, int32_t len )
 {
-	if ( m_RootNode )
-	{
-		delete m_RootNode;
-	}
-}
+    int32_t i = 0;
 
-void KeywordDict::insert( KeywordNode * node, char * words, int32_t len, int32_t index )
-{
-	KeywordNode * n = NULL;
+    while ( i < len )
+    {
+        int32_t index = i;
+        int32_t count = 0;
 
-	n = find( node, words[index] );
-	if ( n == NULL )
-	{
-		n = new KeywordNode;
-		if ( n )
-		{
-			node->add( words[index], n );	
-		}
-	}
+        i = this->matching( words, index, len, count );
 
-	++index;
-	if ( index == len )
-	{
-		n->setEnding();
-	}
-	else if ( index < len )
-	{
-		insert( n, words, len, index );
-	}
+        // è‡ªå¢
+        ++i;
 
-	return;
-}
+        // æ‰¾åˆ°äº†å…³é”®å­—
+        if ( count > 0 )
+        {
+            return true;
+        }
+    }
 
-KeywordNode * KeywordDict::find( KeywordNode * node, char c )
-{
-	return node->find( c );
-}
-
-int32_t KeywordDict::matching( char * words, int32_t index, int32_t len, int32_t & count )
-{
-	int32_t i = index;
-	KeywordNode * node = m_RootNode;
-	
-	while ( i < len )
-	{
-		node = find( node, words[i] );
-		if ( node == NULL )
-		{
-			count = 0;
-			i = index;
-			break;
-		}
-		else 
-		{
-			++count;
-		
-			if ( node->isEnding() )
-			{
-				// ¹Ø¼ü×ÖÆ¥ÅäÍê±Ï, ÕÒµ½ÁËĞèÒª¹ıÂËµÄ×Ö´®
-				break;
-			}
-			else if ( i == len-1 )
-			{
-				// ¹Ø¼ü×Ö»¹ÔÚÆ¥ÅäÖĞ, µ«´ı¹ıÂËµÄ×Ö·û´®ÒÑ¾­½áÊøÁË
-				count = 0;
-				i = index;
-				break;
-			}
-		}
-		
-		++i;
-	}
-	
-	return i;
-}
-
-int32_t KeywordDict::add( char * words, int32_t len )
-{
-	len = ( len == 0 ? (int32_t)::strlen(words) : len );
-	if ( len <= 0 )
-	{
-		return -1;
-	}
-
-	insert( m_RootNode, words, len, 0 );
-	return 0;
-}
-
-bool KeywordDict::check( char * words, int32_t len )
-{
-	int32_t i = 0;
-		
-	while ( i < len )
-	{
-		int32_t index = i;
-		int32_t count = 0;
-
-		i = matching( words, index, len, count );
-
-		// ÕÒµ½ÁË¹Ø¼ü×Ö
-		if ( count > 0 )
-		{
-			break;
-		}		
-		
-		++i;
-	}
-	
-	return ( i == len );		
+    return false;
 }
 
 int32_t KeywordDict::filter( char * words, int32_t len )
 {
-	int32_t i = 0;
-	
-	while ( i < len )
-	{
-		int32_t index = i;
-		int32_t count = 0;
+    int32_t i = 0;
 
-		i = matching( words, index, len, count );
+    while ( i < len )
+    {
+        int32_t index = i;
+        int32_t count = 0;
 
-		// ÕÒµ½ÁË¹Ø¼ü×Ö
-		for ( ; count > 0; --count )
-		{
-			words[index+count-1] = '*';
-		}		
-		
-		++i;
-	}
-	
-	words[len] = 0;
-	
-	return len;	
+        i = this->matching( words, index, len, count );
+
+        // æ‰¾åˆ°äº†å…³é”®å­—
+        for ( ; count > 0; --count )
+        {
+            words[index+count-1] = '*';
+        }
+
+        ++i;
+    }
+
+    words[len] = 0;
+
+    return len;
 }
 
 int32_t KeywordDict::filter( char * src, int32_t srclen, char * dst, int32_t dstlen, char * replace, int32_t replacelen )
 {
-	int32_t i = 0;
-	int32_t len = 0;
-	
-	while ( i < srclen )
-	{
-		int32_t index = i;
-		int32_t count = 0;
+    int32_t i = 0;
+    int32_t len = 0;
 
-		i = matching( src, index, srclen, count );
+    while ( i < srclen )
+    {
+        int32_t index = i;
+        int32_t count = 0;
 
-		if ( count > 0 )
-		{
-			// ÕÒµ½ÁË¹Ø¼ü×Ö, Ìæ»»
-			memcpy( dst+len, replace, replacelen );
-			len += replacelen;
-		}
-		else
-		{
-			// Ã»ÓĞÕÒµ½Ö±½Ó¸³Öµ
-			dst[len] = src[index];
-			len += 1;
-		}
-		
-		if ( len >= dstlen )
-		{
-			len = 0;
-			break;
-		}
-		
-		++i;
-	}
-	
-	dst[len] = 0;
-	
-	return len;	
+        i = this->matching( src, index, srclen, count );
+
+        if ( count > 0 )
+        {
+            // æ‰¾åˆ°äº†å…³é”®å­—, æ›¿æ¢
+            std::memcpy( dst+len, replace, replacelen );
+            len += replacelen;
+        }
+        else
+        {
+            // æ²¡æœ‰æ‰¾åˆ°ç›´æ¥èµ‹å€¼
+            dst[len] = src[index];
+            len += 1;
+        }
+
+        if ( len >= dstlen )
+        {
+            len = 0;
+            break;
+        }
+
+        ++i;
+    }
+
+    dst[len] = 0;
+
+    return len;
+}
+
+KeywordNode * KeywordDict::allocate( uint8_t c )
+{
+#if 0
+    if ( m_UsedBlock == NULL
+            || m_Allocated >= NODE_COUNT_PER_BLOCK - 1 )
+    {
+        m_UsedBlock = std::malloc( sizeof(KeywordNode) * NODE_COUNT_PER_BLOCK );
+        assert( m_UsedBlock != NULL && "allocate m_UsedBlock failed" );
+
+        m_Allocated = 0;
+        m_BlockList.push_back( m_UsedBlock );
+    }
+
+    return new ( (KeywordNode *)m_UsedBlock+(m_Allocated++) ) KeywordNode( c );
+#endif
+    ++m_Count;
+    return new KeywordNode( c );
+}
+
+void KeywordDict::insert( KeywordNode * node, const char * words, int32_t len, int32_t index )
+{
+    KeywordNode * n = NULL;
+
+    n = node->find( words[index] );
+    if ( n == NULL )
+    {
+        n = this->allocate( words[index] );
+        if ( n )
+        {
+            node->add( words[index], n );
+        }
+    }
+
+    ++index;
+
+    if ( index == len )
+    {
+        n->setEnding();
+    }
+    else if ( index < len )
+    {
+        this->insert( n, words, len, index );
+    }
+
+    return;
+}
+
+int32_t KeywordDict::matching( const char * words, int32_t index, int32_t len, int32_t & count )
+{
+    int32_t i = index;
+    KeywordNode * node = m_RootNode;
+
+    while ( i < len )
+    {
+        node = node->find( words[i] );
+        if ( node == NULL )
+        {
+            count = 0;
+            i = index;
+            break;
+        }
+        else
+        {
+            ++count;
+
+            if ( node->isEnding() )
+            {
+                // å…³é”®å­—åŒ¹é…å®Œæ¯•, æ‰¾åˆ°äº†éœ€è¦è¿‡æ»¤çš„å­—ä¸²
+                break;
+            }
+            else if ( i == len-1 )
+            {
+                // å…³é”®å­—è¿˜åœ¨åŒ¹é…ä¸­, ä½†å¾…è¿‡æ»¤çš„å­—ç¬¦ä¸²å·²ç»ç»“æŸäº†
+                count = 0;
+                i = index;
+                break;
+            }
+        }
+
+        ++i;
+    }
+
+    return i;
 }

@@ -1,51 +1,60 @@
 
-#ifndef KEYWORD_DICT_H
-#define KEYWORD_DICT_H
+#ifndef __SRC_DOMAIN_KEYWORDDICT_H__
+#define __SRC_DOMAIN_KEYWORDDICT_H__
 
 #include <stdint.h>
 
 class KeywordNode;
+
+// å­—å…¸
 class KeywordDict
 {
 public :
-	KeywordDict();
-	~KeywordDict();
+    KeywordDict();
+    ~KeywordDict();
 
 public :
+    // è·å–èŠ‚ç‚¹ä¸ªæ•°
+    uint32_t count() const { return m_Count; }
 
-	bool init();
-	void final();
-	
-	// Ôö¼Ó¹Ø¼ü×Ö
-	int32_t add( char * words, int32_t len = 0 );
-	
-	// ¼ì²é×Ö·û´®ÖĞÊÇ·ñÓĞ¹Ø¼ü×Ö
-	bool check( char * words, int32_t len );
+    // å¢åŠ å…³é”®å­—
+    // TODO: DFA Minimization
+    int32_t add( const char * words, int32_t len = 0 );
 
-	// ¹ıÂËÏûÏ¢(Ä¬ÈÏÃ¿¸ö¹Ø¼ü×ÖÓÃ*´úÌæ, Ö±½ÓĞŞ¸ÄÔ´×Ö·û´®)
-	//		words		- ĞèÒª¹ıÂËµÄÏûÏ¢
-	//		len			- ¹ıÂËÏûÏ¢µÄ³¤¶È
-	int32_t filter( char * words, int32_t len );
-	
-	// ¹ıÂËÏûÏ¢
-	//		src			- ĞèÒª¹ıÂËµÄ×Ö·û´®
-	// 		srclen		- ĞèÒª¹ıÂËµÄ×Ö·û´®³¤¶È
-	//		dst			- ¹ıÂËºóµÄ×Ö·û´®
-	//		dstlen		- ´æ·Å¹ıÂËºó×Ö·û´®µÄ¿Õ¼ä³¤¶È
-	// 		replace		- ¹Ø¼ü×ÖÓÃreplaceÀ´Ìæ»»
-	//		replacelen	- Ìæ»»×Ö·û´®µÄ³¤¶È
-	int32_t filter( char * src, int32_t srclen, char * dst, int32_t dstlen, char * replace, int32_t replacelen );
+    // æ£€æŸ¥å­—ç¬¦ä¸²ä¸­æ˜¯å¦æœ‰å…³é”®å­—
+    bool check( const char * words, int32_t len );
 
-private :
-	
-	KeywordNode * find( KeywordNode * node, char c );
-	int32_t matching( char * words, int32_t index, int32_t len, int32_t & count );
-	void insert( KeywordNode * node, char * words, int32_t len, int32_t index );
+    // è¿‡æ»¤æ¶ˆæ¯(é»˜è®¤æ¯ä¸ªå…³é”®å­—ç”¨*ä»£æ›¿, ç›´æ¥ä¿®æ”¹æºå­—ç¬¦ä¸²)
+    //          words       - éœ€è¦è¿‡æ»¤çš„æ¶ˆæ¯
+    //          len         - è¿‡æ»¤æ¶ˆæ¯çš„é•¿åº¦
+    int32_t filter( char * words, int32_t len );
+
+    // è¿‡æ»¤æ¶ˆæ¯
+    //          src         - éœ€è¦è¿‡æ»¤çš„å­—ç¬¦ä¸²
+    //          srclen      - éœ€è¦è¿‡æ»¤çš„å­—ç¬¦ä¸²é•¿åº¦
+    //          dst         - è¿‡æ»¤åçš„å­—ç¬¦ä¸²
+    //          dstlen      - å­˜æ”¾è¿‡æ»¤åå­—ç¬¦ä¸²çš„ç©ºé—´é•¿åº¦
+    //          replace     - å…³é”®å­—ç”¨replaceæ¥æ›¿æ¢
+    //          replacelen  - æ›¿æ¢å­—ç¬¦ä¸²çš„é•¿åº¦
+    int32_t filter( char * src, int32_t srclen,
+            char * dst, int32_t dstlen,
+            char * replace, int32_t replacelen );
 
 private :
+    // åˆ†é…å†…å­˜å—
+    KeywordNode * allocate( uint8_t c );
 
-	KeywordNode * m_RootNode;
-}; 
+    // æ’å…¥
+    void insert( KeywordNode * node,
+            const char * words, int32_t len, int32_t index );
 
+    // åŒ¹é…
+    int32_t matching( const char * words,
+            int32_t index, int32_t len, int32_t & count );
+
+private :
+    uint32_t            m_Count;
+    KeywordNode *       m_RootNode;
+};
 
 #endif
